@@ -1,0 +1,37 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Local data and model artifacts
+data/**
+!data/.gitkeep
+!data/train/
+!data/train/.gitkeep
+!data/val/
+!data/val/.gitkeep
+!data/test/
+!data/test/.gitkeep
+*.pt
+*.pth
+*.onnx
+
+# Streamlit
+.streamlit/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
