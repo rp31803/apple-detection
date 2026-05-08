@@ -1,0 +1,30 @@
+plugins = []
+functionsDirectory = "D:\\website\\apple\\apple-detection\\functions"
+functionsDirectoryOrigin = "config-v1"
+headers = []
+redirects = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "D:\\website\\apple\\apple-detection"
+publishOrigin = "config"
+base = "D:\\website\\apple\\apple-detection"
+functions = "D:\\website\\apple\\apple-detection\\functions"
+
+[build.environment]
+PYTHON_VERSION = "3.8"
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
