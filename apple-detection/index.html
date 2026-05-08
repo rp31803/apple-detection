@@ -354,13 +354,14 @@
                 arr.push([data[i], data[i + 1], data[i + 2]]);
             }
 
+            const h = canvas.height;
+            const w = canvas.width;
+
             if (arr.length === 0 || arr[0].length !== 3) {
                 return { verdict: false, confidence: 0.55 };
             }
 
             // Center-crop
-            const h = Math.floor(Math.sqrt(arr.length));
-            const w = h;
             const y0 = Math.floor(h * 0.15);
             const y1 = Math.floor(h * 0.85);
             const x0 = Math.floor(w * 0.15);
@@ -368,8 +369,9 @@
             const cropped = [];
             for (let y = y0; y < y1; y++) {
                 for (let x = x0; x < x1; x++) {
-                    if (y * w + x < arr.length) {
-                        cropped.push(arr[y * w + x]);
+                    const index = y * w + x;
+                    if (index < arr.length) {
+                        cropped.push(arr[index]);
                     }
                 }
             }
@@ -390,19 +392,19 @@
             // Hue calculation
             const hue = new Array(cropped.length).fill(0);
             for (let i = 0; i < cropped.length; i++) {
-                const r = cropped[i][0] / 255.0;
-                const g = cropped[i][1] / 255.0;
-                const b = cropped[i][2] / 255.0;
-                const maxc = Math.max(r, g, b);
-                const minc = Math.min(r, g, b);
+                const rv = cropped[i][0] / 255.0;
+                const gv = cropped[i][1] / 255.0;
+                const bv = cropped[i][2] / 255.0;
+                const maxc = Math.max(rv, gv, bv);
+                const minc = Math.min(rv, gv, bv);
                 const delta = maxc - minc;
                 if (delta > 1e-6) {
-                    if (maxc === r) {
-                        hue[i] = ((g - b) / delta) % 6;
-                    } else if (maxc === g) {
-                        hue[i] = ((b - r) / delta) + 2;
+                    if (maxc === rv) {
+                        hue[i] = ((gv - bv) / delta) % 6;
+                    } else if (maxc === gv) {
+                        hue[i] = ((bv - rv) / delta) + 2;
                     } else {
-                        hue[i] = ((r - g) / delta) + 4;
+                        hue[i] = ((rv - gv) / delta) + 4;
                     }
                     hue[i] = (hue[i] / 6.0) % 1.0;
                 }
