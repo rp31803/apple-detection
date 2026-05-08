@@ -337,6 +337,103 @@
             }
         });
 
+        function predictDemo(image) {
+            // Convert to canvas
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.drawImage(image, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            // Convert to RGB array
+            const arr = [];
+            for (let i = 0; i < data.length; i += 4) {
+                arr.push([data[i], data[i + 1], data[i + 2]]);
+            }
+
+            if (arr.length === 0 || arr[0].length !== 3) {
+                return { verdict: false, confidence: 0.55 };
+            }
+
+            // Center-crop
+            const h = Math.floor(Math.sqrt(arr.length));
+            const w = h;
+            const y0 = Math.floor(h * 0.15);
+            const y1 = Math.floor(h * 0.85);
+            const x0 = Math.floor(w * 0.15);
+            const x1 = Math.floor(w * 0.85);
+            const cropped = [];
+            for (let y = y0; y < y1; y++) {
+                for (let x = x0; x < x1; x++) {
+                    if (y * w + x < arr.length) {
+                        cropped.push(arr[y * w + x]);
+                    }
+                }
+            }
+
+            const r = cropped.map(p => p[0] / 255.0);
+            const g = cropped.map(p => p[1] / 255.0);
+            const b = cropped.map(p => p[2] / 255.0);
+
+            const maxc = r.map((_, i) => Math.max(r[i], g[i], b[i]));
+            const minc = r.map((_, i) => Math.min(r[i], g[i], b[i]));
+            const delta = maxc.map((_, i) => maxc[i] - minc[i]);
+
+            const valid = delta.map((d, i) => d > 0.12 && maxc[i] > 0.25);
+            if (!valid.some(v => v)) {
+                return { verdict: false, confidence: 0.55 };
+            }
+
+            // Hue calculation
+            const hue = new Array(cropped.length).fill(0);
+            for (let i = 0; i < cropped.length; i++) {
+                const r = cropped[i][0] / 255.0;
+                const g = cropped[i][1] / 255.0;
+                const b = cropped[i][2] / 255.0;
+                const maxc = Math.max(r, g, b);
+                const minc = Math.min(r, g, b);
+                const delta = maxc - minc;
+                if (delta > 1e-6) {
+                    if (maxc === r) {
+                        hue[i] = ((g - b) / delta) % 6;
+                    } else if (maxc === g) {
+                        hue[i] = ((b - r) / delta) + 2;
+                    } else {
+                        hue[i] = ((r - g) / delta) + 4;
+                    }
+                    hue[i] = (hue[i] / 6.0) % 1.0;
+                }
+            }
+
+            const saturation = delta.map((d, i) => d > 1e-6 ? d / Math.max(maxc[i], 1e-6) : 0);
+            const vivid = valid.map((v, i) => v && saturation[i] > 0.20);
+
+            // Yellow rejection
+            const yellow = vivid.map((v, i) => v && hue[i] >= 0.11 && hue[i] <= 0.19);
+            const yellowRatio = yellow.filter(y => y).length / yellow.length;
+            if (yellowRatio >= 0.03) {
+                const confidence = Math.min(0.92, 0.60 + yellowRatio * 5.0);
+                return { verdict: false, confidence };
+            }
+
+            // Apple hues
+            const red = vivid.map((v, i) => v && (hue[i] <= 0.05 || hue[i] >= 0.95));
+            const green = vivid.map((v, i) => v && hue[i] >= 0.24 && hue[i] <= 0.45);
+            const score = (red.filter(r => r).length + green.filter(g => g).length) / vivid.length;
+
+            const threshold = 0.08;
+            const sharpness = 85.0;
+            let pApple = 1.0 / (1.0 + Math.exp(-(score - threshold) * sharpness));
+            pApple = Math.max(0.10, Math.min(0.90, pApple));
+
+            const isApple = pApple >= 0.5;
+            const confidence = isApple ? pApple : (1.0 - pApple);
+            return { verdict: isApple, confidence };
+        }
+
         function handleFile(file) {
             // Validate file type
             const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
@@ -356,56 +453,37 @@
             loading.style.display = 'block';
             resultsSection.style.display = 'none';
 
-            // Read file as base64
+            // Process image
             const reader = new FileReader();
             reader.onload = function(e) {
-                const base64 = e.target.result.split(',')[1]; // Remove data:image/...;base64,
+                const img = new Image();
+                img.onload = function() {
+                    try {
+                        const result = predictDemo(img);
+                        loading.style.display = 'none';
 
-                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-                let url, body, headers;
+                        // Convert image to base64 for display
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+                        const imageData = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
 
-                if (isLocal) {
-                    // Local Flask server
-                    url = 'http://localhost:5000/predict';
-                    const formData = new FormData();
-                    formData.append('image', file);
-                    body = formData;
-                    headers = {};
-                } else {
-                    // Netlify function
-                    url = '/.netlify/functions/predict';
-                    body = JSON.stringify({ image: base64 });
-                    headers = { 'Content-Type': 'application/json' };
-                }
+                        // Show results
+                        previewImage.src = canvas.toDataURL('image/jpeg', 0.85);
+                        verdict.textContent = result.verdict ? 'True' : 'False';
+                        verdict.className = 'verdict ' + (result.verdict ? 'true' : 'false');
+                        confidence.textContent = (result.confidence * 100).toFixed(1) + '%';
+                        modelType.textContent = 'Demo Mode (Heuristic)';
 
-                fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: body
-                })
-                .then(response => response.json())
-                .then(data => {
-                    loading.style.display = 'none';
-
-                    if (data.error) {
-                        showError(data.error);
-                        return;
+                        resultsSection.style.display = 'grid';
+                    } catch (error) {
+                        loading.style.display = 'none';
+                        showError('Processing failed: ' + error.message);
                     }
-
-                    // Show results
-                    previewImage.src = 'data:image/jpeg;base64,' + data.image_data;
-                    verdict.textContent = data.verdict ? 'True' : 'False';
-                    verdict.className = 'verdict ' + (data.verdict ? 'true' : 'false');
-                    confidence.textContent = (data.confidence * 100).toFixed(1) + '%';
-                    modelType.textContent = data.model_type === 'trained' ? 'Trained Model' : 'Demo Mode (Heuristic)';
-
-                    resultsSection.style.display = 'grid';
-                })
-                .catch(error => {
-                    loading.style.display = 'none';
-                    showError('Network error. Please try again.');
-                    console.error('Error:', error);
-                });
+                };
+                img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
