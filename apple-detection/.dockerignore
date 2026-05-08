@@ -1,0 +1,41 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data and models (will be mounted as volumes)
+data/
+checkpoints/
+*.pt
+*.pth
+*.onnx
+
+# Development files
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+
+# Original Streamlit app
+app_streamlit.py

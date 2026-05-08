@@ -1,18 +1,11 @@
-from flask import Flask, render_template, request, jsonify
-from pathlib import Path
-from typing import Optional
+import json
 import base64
 import io
-
+from typing import Tuple
 import numpy as np
 from PIL import Image
 
-from config import DEFAULT_CHECKPOINT
-
-app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-
-def predict_demo(image: Image.Image) -> tuple[bool, float]:
+def predict_demo(image: Image.Image) -> Tuple[bool, float]:
     """Heuristic fallback when no checkpoint is available.
 
     Conservative on purpose: avoids calling common banana/yellow images "apple".
@@ -82,56 +75,53 @@ def predict_demo(image: Image.Image) -> tuple[bool, float]:
     confidence = p_apple if is_apple else (1.0 - p_apple)
     return bool(is_apple), float(confidence)
 
-@app.route('/')
-def index():
-    checkpoint_exists = Path(DEFAULT_CHECKPOINT).exists()
-    return render_template('index.html', checkpoint_exists=checkpoint_exists)
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image file provided'}), 400
-
-    file = request.files['image']
-    if file.filename == '':
-        return jsonify({'error': 'No image selected'}), 400
-
-    if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
-        return jsonify({'error': 'Invalid file type. Please upload PNG, JPG, JPEG, or WebP images.'}), 400
+def handler(event, context):
+    if event['httpMethod'] != 'POST':
+        return {
+            'statusCode': 405,
+            'body': json.dumps({'error': 'Method not allowed'})
+        }
 
     try:
-        image = Image.open(file.stream)
+        body = json.loads(event['body'])
+        if 'image' not in body:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': 'No image provided'})
+            }
+
+        # Decode base64 image
+        image_data = base64.b64decode(body['image'])
+        image = Image.open(io.BytesIO(image_data))
 
         # Convert to RGB if necessary
         if image.mode not in ('RGB', 'L'):
             image = image.convert('RGB')
 
-        checkpoint_path = Path(DEFAULT_CHECKPOINT)
-
-        if not checkpoint_path.exists():
-            # Use demo mode
-            verdict, confidence = predict_demo(image)
-            model_type = "demo"
-        else:
-            # Use trained model
-            from src.inference import predict_is_apple
-            verdict, confidence = predict_is_apple(image, checkpoint_path)
-            model_type = "trained"
+        # Use demo mode
+        verdict, confidence = predict_demo(image)
+        model_type = "demo"
 
         # Convert image to base64 for display
         buffered = io.BytesIO()
         image.save(buffered, format="JPEG", quality=85)
         img_str = base64.b64encode(buffered.getvalue()).decode()
 
-        return jsonify({
-            'verdict': verdict,
-            'confidence': confidence,
-            'image_data': img_str,
-            'model_type': model_type
-        })
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json'
+            },
+            'body': json.dumps({
+                'verdict': verdict,
+                'confidence': confidence,
+                'image_data': img_str,
+                'model_type': model_type
+            })
+        }
 
     except Exception as e:
-        return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': f'Prediction failed: {str(e)}'})
+        }

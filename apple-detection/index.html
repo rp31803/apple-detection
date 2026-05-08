@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Detection</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍎</text></svg>">
+    <style>
+        :root {
+            --ink: #111827;
+            --muted: #5f6c7b;
+            --panel: #ffffff;
+            --surface: #f7f8fb;
+            --accent: #2d6cdf;
+            --accent-soft: rgba(45, 108, 223, 0.12);
+            --border: rgba(17, 24, 39, 0.08);
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(45, 108, 223, 0.12), transparent 38%),
+                radial-gradient(circle at top right, rgba(15, 23, 42, 0.08), transparent 34%),
+                linear-gradient(180deg, #fbfcfe 0%, #f2f5fb 100%);
+            color: var(--ink);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 3rem 1rem 3.5rem;
+        }
+
+        .hero-card {
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 1.6rem 1.9rem;
+            background: var(--panel);
+            box-shadow: 0 22px 55px rgba(15, 23, 42, 0.08);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .hero-title {
+            font-size: 2.6rem;
+            line-height: 1.05;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 0.35rem;
+        }
+
+        .hero-copy {
+            font-size: 1.02rem;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.2rem 0.7rem;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .upload-section {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 2rem;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+            margin-bottom: 2rem;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: var(--surface);
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        .upload-text {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-subtext {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .results-section {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .results-section {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+        }
+
+        .result-card {
+            border-radius: 18px;
+            padding: 1.5rem;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .prediction-result {
+            text-align: center;
+        }
+
+        .verdict {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 1rem 0;
+        }
+
+        .verdict.true {
+            color: var(--success);
+        }
+
+        .verdict.false {
+            color: var(--error);
+        }
+
+        .confidence {
+            font-size: 1.45rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin: 0.5rem 0;
+        }
+
+        .model-type {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: var(--surface);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-top: 0.5rem;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .spinner {
+            border: 4px solid var(--surface);
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            display: none;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            color: var(--error);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .setup-message {
+            background: #fef3c7;
+            border: 1px solid #fde68a;
+            color: #92400e;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #1e40af;
+        }
+
+        .btn:disabled {
+            background: var(--muted);
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero-card">
+            <div class="hero-title">Apple Detection</div>
+            <div class="hero-copy">Upload an image to get <strong>True/False</strong> (Apple) and confidence.</div>
+            <div class="pill" style="margin-top: 0.8rem;">Vision classifier</div>
+        </div>
+
+        <div class="setup-message">
+            <strong>Demo Mode:</strong> Using heuristic-based detection (no trained model).
+        </div>
+
+        <div class="upload-section">
+            <div class="upload-area" id="upload-area">
+                <div class="upload-icon">📷</div>
+                <div class="upload-text">Drop an image here or click to browse</div>
+                <div class="upload-subtext">Supports PNG, JPG, JPEG, WebP (max 16MB)</div>
+                <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp">
+            </div>
+        </div>
+
+        <div class="error-message" id="error-message"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div>Analyzing image...</div>
+        </div>
+
+        <div class="results-section" id="results-section">
+            <div class="result-card">
+                <h3 style="margin-bottom: 1rem; color: var(--ink);">Preview</h3>
+                <img id="preview-image" class="preview-image" alt="Uploaded image">
+            </div>
+
+            <div class="result-card prediction-result">
+                <h3 style="margin-bottom: 1rem; color: var(--ink);">Prediction</h3>
+                <div id="prediction-content">
+                    <div style="color: var(--muted); font-weight: 600; margin-bottom: 0.5rem;">Apple</div>
+                    <div class="verdict" id="verdict">True</div>
+                    <div style="color: var(--muted); margin: 0.7rem 0 0.3rem;">Confidence</div>
+                    <div class="confidence" id="confidence">85.2%</div>
+                    <div class="model-type" id="model-type">Demo Mode (Heuristic)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const errorMessage = document.getElementById('error-message');
+        const loading = document.getElementById('loading');
+        const resultsSection = document.getElementById('results-section');
+        const previewImage = document.getElementById('preview-image');
+        const verdict = document.getElementById('verdict');
+        const confidence = document.getElementById('confidence');
+        const modelType = document.getElementById('model-type');
+
+        // Upload area interactions
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            // Validate file type
+            const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                showError('Invalid file type. Please upload PNG, JPG, or WebP images.');
+                return;
+            }
+
+            // Validate file size (16MB)
+            if (file.size > 16 * 1024 * 1024) {
+                showError('File too large. Please upload an image smaller than 16MB.');
+                return;
+            }
+
+            // Show loading
+            hideError();
+            loading.style.display = 'block';
+            resultsSection.style.display = 'none';
+
+            // Read file as base64
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result.split(',')[1]; // Remove data:image/...;base64,
+
+                const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                let url, body, headers;
+
+                if (isLocal) {
+                    // Local Flask server
+                    url = 'http://localhost:5000/predict';
+                    const formData = new FormData();
+                    formData.append('image', file);
+                    body = formData;
+                    headers = {};
+                } else {
+                    // Netlify function
+                    url = '/.netlify/functions/predict';
+                    body = JSON.stringify({ image: base64 });
+                    headers = { 'Content-Type': 'application/json' };
+                }
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: body
+                })
+                .then(response => response.json())
+                .then(data => {
+                    loading.style.display = 'none';
+
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+
+                    // Show results
+                    previewImage.src = 'data:image/jpeg;base64,' + data.image_data;
+                    verdict.textContent = data.verdict ? 'True' : 'False';
+                    verdict.className = 'verdict ' + (data.verdict ? 'true' : 'false');
+                    confidence.textContent = (data.confidence * 100).toFixed(1) + '%';
+                    modelType.textContent = data.model_type === 'trained' ? 'Trained Model' : 'Demo Mode (Heuristic)';
+
+                    resultsSection.style.display = 'grid';
+                })
+                .catch(error => {
+                    loading.style.display = 'none';
+                    showError('Network error. Please try again.');
+                    console.error('Error:', error);
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
