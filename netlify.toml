@@ -1,0 +1,3 @@
+[build]
+  publish = "apple-detection"
+  functions = "apple-detection/functions"
